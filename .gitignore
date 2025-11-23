@@ -1,0 +1,15 @@
+# WordPress files (if downloaded)
+wp-admin/
+wp-includes/
+wp-content/uploads/
+wp-content/cache/
+*.log
+
+# Backup files
+*.bak
+*.backup
+*.sql
+
+# System files
+.DS_Store
+Thumbs.db
