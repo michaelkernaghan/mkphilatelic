@@ -7,74 +7,133 @@ from collections import defaultdict
 
 def fetch_and_process_stamps(url):
     print(f"Attempting to fetch data from: {url}")
-    
+
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
-    
+
     try:
         print("Sending request...")
         response = requests.get(url, headers=headers, timeout=10)
         print(f"Response status code: {response.status_code}")
-        
+
         if response.status_code != 200:
             print(f"Error: Received status code {response.status_code}")
             return
-        
+
         print("Parsing HTML content...")
         soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Debug: Print the first part of the HTML to see what we're getting
-        print("\nFirst 500 characters of HTML:")
-        print(response.text[:500])
-        print("\nNumber of <span> tags found:", len(soup.find_all('span')))
-        
-        # Debug: Print first few spans
-        print("\nFirst 3 spans found:")
-        for span in list(soup.find_all('span'))[:3]:
-            print(f"SPAN TEXT: {span.get_text().strip()}")
-        
+
+        print(f"\nNumber of <span> tags found: {len(soup.find_all('span'))}")
         print("\nProcessing stamps...\n")
-        
-        # Regular expressions for filtering
-        year_pattern = r'\s18\d{2}.|\s19[0-3]\d\s.|\s19[0-3]\d-[0-3]\d.|19\d{2}-40.|1940\s.'
-        auction_ref_pattern = r'(?:^|\s)(\d{1,4})\.(?=\s)'
-        
+
+        # Year pattern to match stamps from 1800s to 1940
+        year_pattern = r'18\d{2}|19[0-3]\d|1940'
+
+        # Keywords to exclude (collections, covers, etc. - not individual stamps)
         exclude_keywords = [
-            "jpg", "CATALOGUE", "BLOCK", "CANADA", "Booklets", 
-            "SPECIMEN", "cover", "Souvenir", "CINDERELLAS",
-            "BANK NOTE", "POSTCARDS", "COVERS"
+            "CATALOGUE", "Booklets", "SPECIMEN", "cover", "Cover", "COVER",
+            "Souvenir", "CINDERELLAS", "BANK NOTE", "POSTCARDS", "COVERS",
+            "COINS", "Accum", "Range of", "approx.", "Annual", "Packs",
+            "POSTAGE", "Face $", "sheets", "SHEETS", "Plate blocks",
+            "Plate Blocks", "P.O.", "FIRST DAY", "FDC", "CANCELS",
+            "POSTAL STATIONERY", "FIELDPOST", "FLIGHT", "Registration"
         ]
-        
+
+        # Countries to exclude
+        exclude_countries = ["CANADA", "PRINCE EDWARD ISLAND"]
+
         # Dictionary to store results by country
         results: Dict[str, List[tuple]] = defaultdict(list)
-        
+
         spans = soup.find_all('span')
-        
+        current_lot = None
+
         for span in spans:
             text = span.get_text().strip()
-            
-            # Debug: Print each text we're processing
-            print(f"Processing text: {text[:100]}")
-            
-            auction_ref = None
-            ref_match = re.search(auction_ref_pattern, text)
-            if ref_match:
-                auction_ref = ref_match.group(1)
-                print(f"Found auction ref: {auction_ref}")
-            
-            if (re.search(year_pattern, text) and 
-                not any(keyword in text for keyword in exclude_keywords)):
-                
-                country_match = re.match(r'^[A-Z]+(?: [A-Z]+)?', text)
-                if country_match and auction_ref:
-                    country = country_match.group(0)
-                    stamp_numbers = re.findall(r'#\w+', text)
-                    print(f"Found match - Country: {country}, Stamps: {stamp_numbers}")
-                    
-                    for number in stamp_numbers:
-                        stamp_num = number.replace('#', '')
-                        results[country].append((auction_ref, stamp_num, text.strip()))
+
+            # Check if this is a lot number (e.g., "11." or "123.")
+            lot_match = re.match(r'^(\d{1,3})\.\s*$', text)
+            if lot_match:
+                current_lot = lot_match.group(1)
+                continue
+
+            # Skip if no current lot or text is too short
+            if not current_lot or len(text) < 20:
+                continue
+
+            # Check if this looks like a stamp listing (starts with country name)
+            country_match = re.match(r'^([A-Z][A-Z\s:\.&]+?)(?:\s+(?:Semi-Postals|Syncopated|Blocks|SEMI-OFFICIAL))?[\s\d]', text)
+            if not country_match:
+                continue
+
+            country = country_match.group(1).strip().rstrip(':')
+
+            # Fix multi-word country names (common philatelic entities)
+            multi_word_countries = {
+                "UNITED": "UNITED STATES",
+                "GREAT": "GREAT BRITAIN",
+                "NEW": "NEW ZEALAND",  # Could also be NEW BRUNSWICK, NEW GUINEA, etc.
+                "PRINCE": "PRINCE EDWARD ISLAND",
+                "GOLD": "GOLD COAST",
+                "NORTH": "NORTH BORNEO",  # Could also be NORTH KOREA, etc.
+                "SOUTH": "SOUTH AFRICA",  # Could also be SOUTH AUSTRALIA, SOUTH WEST AFRICA
+                "SIERRA": "SIERRA LEONE",
+                "COSTA": "COSTA RICA",
+                "SAN": "SAN MARINO",
+                "HONG": "HONG KONG",
+                "BRITISH": "BRITISH GUIANA",  # Could also be BRITISH HONDURAS, etc.
+                "CAYMAN": "CAYMAN ISLANDS",
+                "FALKLAND": "FALKLAND ISLANDS",
+                "VIRGIN": "VIRGIN ISLANDS",
+                "COOK": "COOK ISLANDS",
+                "PITCAIRN": "PITCAIRN ISLANDS",
+                "SOLOMON": "SOLOMON ISLANDS",
+                "TURKS": "TURKS AND CAICOS",
+                "TRINIDAD": "TRINIDAD AND TOBAGO",
+                "CAPE": "CAPE OF GOOD HOPE",
+                "ORANGE": "ORANGE FREE STATE",
+                "STRAITS": "STRAITS SETTLEMENTS",
+                "FEDERATED": "FEDERATED MALAY STATES",
+                "PAPUA": "PAPUA NEW GUINEA",
+            }
+
+            # Check if country starts with a known prefix and extract full name from text
+            first_word = country.split()[0] if country else ""
+            if first_word in multi_word_countries:
+                # Try to extract full country name from text
+                expected_full = multi_word_countries[first_word]
+                if text.upper().startswith(expected_full):
+                    country = expected_full
+                else:
+                    # Fallback to the mapped default
+                    country = expected_full
+
+            # Skip excluded countries
+            if country in exclude_countries:
+                current_lot = None
+                continue
+
+            # Skip excluded items
+            if any(keyword in text for keyword in exclude_keywords):
+                current_lot = None
+                continue
+
+            # Check for year in valid range
+            if not re.search(year_pattern, text):
+                current_lot = None
+                continue
+
+            # Find stamp numbers (e.g., #55, #102, #168-82)
+            stamp_numbers = re.findall(r'#(\d+[a-zA-Z]?(?:-\d+[a-zA-Z]?)?)', text)
+
+            if stamp_numbers:
+                clean_text = text.encode('ascii', 'replace').decode('ascii')
+                for stamp_num in stamp_numbers:
+                    results[country].append((current_lot, stamp_num, clean_text))
+                    print(f"Lot #{current_lot}: {country} - Stamp #{stamp_num}")
+
+            current_lot = None
 
         # Print results in a clean format
         if results:
@@ -86,8 +145,10 @@ def fetch_and_process_stamps(url):
                 print(f"\n{country}:")
                 print("-" * len(country) + "-\n")
                 
-                for auction_ref, stamp_num, description in sorted(results[country], key=lambda x: x[0]):
-                    print(f"Lot #{auction_ref:4} | Stamp #{stamp_num:8} | {description[:100]}...")
+                for auction_ref, stamp_num, description in sorted(results[country], key=lambda x: int(x[0])):
+                    print(f"\nLot #{auction_ref}")
+                    print(f"  Stamp #: {stamp_num}")
+                    print(f"  Description: {description}")
                 
             print("\n" + "="*80)
             print(f"Total countries: {len(results)}")
