@@ -41,7 +41,7 @@ def fetch_and_process_stamps(url):
         ]
 
         # Countries to exclude
-        exclude_countries = ["CANADA", "PRINCE EDWARD ISLAND", "NOVA SCOTIA", "GIBRALTAR", "BRITISH COLUMBIA"]
+        exclude_countries = ["CANADA", "PRINCE EDWARD ISLAND", "NOVA SCOTIA", "GIBRALTAR", "BRITISH COLUMBIA", "TOBAGO"]
 
         # Dictionary to store results by country
         results: Dict[str, List[tuple]] = defaultdict(list)
