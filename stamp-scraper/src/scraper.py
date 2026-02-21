@@ -41,7 +41,7 @@ def fetch_and_process_stamps(url):
         ]
 
         # Countries to exclude
-        exclude_countries = ["CANADA", "PRINCE EDWARD ISLAND"]
+        exclude_countries = ["CANADA", "PRINCE EDWARD ISLAND", "NOVA SCOTIA", "GIBRALTAR", "BRITISH COLUMBIA"]
 
         # Dictionary to store results by country
         results: Dict[str, List[tuple]] = defaultdict(list)
@@ -70,44 +70,48 @@ def fetch_and_process_stamps(url):
             country = country_match.group(1).strip().rstrip(':')
 
             # Fix multi-word country names (common philatelic entities)
-            multi_word_countries = {
-                "UNITED": "UNITED STATES",
-                "GREAT": "GREAT BRITAIN",
-                "NEW": "NEW ZEALAND",  # Could also be NEW BRUNSWICK, NEW GUINEA, etc.
-                "PRINCE": "PRINCE EDWARD ISLAND",
-                "GOLD": "GOLD COAST",
-                "NORTH": "NORTH BORNEO",  # Could also be NORTH KOREA, etc.
-                "SOUTH": "SOUTH AFRICA",  # Could also be SOUTH AUSTRALIA, SOUTH WEST AFRICA
-                "SIERRA": "SIERRA LEONE",
-                "COSTA": "COSTA RICA",
-                "SAN": "SAN MARINO",
-                "HONG": "HONG KONG",
-                "BRITISH": "BRITISH GUIANA",  # Could also be BRITISH HONDURAS, etc.
-                "CAYMAN": "CAYMAN ISLANDS",
-                "FALKLAND": "FALKLAND ISLANDS",
-                "VIRGIN": "VIRGIN ISLANDS",
-                "COOK": "COOK ISLANDS",
-                "PITCAIRN": "PITCAIRN ISLANDS",
-                "SOLOMON": "SOLOMON ISLANDS",
-                "TURKS": "TURKS AND CAICOS",
-                "TRINIDAD": "TRINIDAD AND TOBAGO",
-                "CAPE": "CAPE OF GOOD HOPE",
-                "ORANGE": "ORANGE FREE STATE",
-                "STRAITS": "STRAITS SETTLEMENTS",
-                "FEDERATED": "FEDERATED MALAY STATES",
-                "PAPUA": "PAPUA NEW GUINEA",
-            }
+            # Multi-word country names, longest match first per prefix
+            multi_word_countries = [
+                "BRITISH COLUMBIA",
+                "BRITISH GUIANA",
+                "BRITISH HONDURAS",
+                "CAPE OF GOOD HOPE",
+                "CAYMAN ISLANDS",
+                "COOK ISLANDS",
+                "COSTA RICA",
+                "FALKLAND ISLANDS",
+                "FEDERATED MALAY STATES",
+                "GOLD COAST",
+                "GREAT BRITAIN",
+                "HONG KONG",
+                "NEW BRUNSWICK",
+                "NEW GUINEA",
+                "NEW ZEALAND",
+                "NORTH BORNEO",
+                "NOVA SCOTIA",
+                "ORANGE FREE STATE",
+                "PAPUA NEW GUINEA",
+                "PITCAIRN ISLANDS",
+                "PRINCE EDWARD ISLAND",
+                "SAN MARINO",
+                "SIERRA LEONE",
+                "SOLOMON ISLANDS",
+                "SOUTH AFRICA",
+                "SOUTH AUSTRALIA",
+                "SOUTH WEST AFRICA",
+                "STRAITS SETTLEMENTS",
+                "TRINIDAD AND TOBAGO",
+                "TURKS AND CAICOS",
+                "UNITED STATES",
+                "VIRGIN ISLANDS",
+            ]
 
-            # Check if country starts with a known prefix and extract full name from text
-            first_word = country.split()[0] if country else ""
-            if first_word in multi_word_countries:
-                # Try to extract full country name from text
-                expected_full = multi_word_countries[first_word]
-                if text.upper().startswith(expected_full):
-                    country = expected_full
-                else:
-                    # Fallback to the mapped default
-                    country = expected_full
+            # Try to match multi-word country names from the text
+            text_upper = text.upper()
+            for mw_country in multi_word_countries:
+                if text_upper.startswith(mw_country):
+                    country = mw_country
+                    break
 
             # Skip excluded countries
             if country in exclude_countries:
